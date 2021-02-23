@@ -34,6 +34,11 @@
 // Modification of Sam / Jos' tuner code to accommodate an OLED
 // display was made by Ryan P. Marchildon Jan-Feb 2021
 
+// === PIN SETUP ===
+// TODO
+// Frequency input is A0 on Arduino Uno using the defaults in this file.
+// For I2C OLED: SCK is pin A5, SDA is A4
+
 // === LICENSE ===
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -41,6 +46,21 @@
 // (at your option) any later version.
 
 #include <Arduino.h>
+#include <U8g2lib.h>
+
+#ifdef U8X8_HAVE_HW_SPI
+#include <SPI.h>
+#endif
+#ifdef U8X8_HAVE_HW_I2C
+#include <Wire.h>
+#endif
+
+// --------------------- OLED SETUP ---------------------
+// Refer to the official U8G2 library documentation here for
+// more information: https://github.com/olikraus/u8g2/wiki
+
+// specify your OLED model, comms protocal (I2C or SPI), buffer mode, and pin configuration
+U8G2_SH1106_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE);
 
 // --------------------- FREQUENCY MEASUREMENT LOGIC ---------------------
 
@@ -61,7 +81,7 @@ int frequency;
 // Data storage variables.
 unsigned int time = 0; // Keeps time and sends values to store in timer[] occasionally.
 #define BUFFER_SIZE 10
-int timer[BUFFER_SIZE];  // Sstorage for timing of events.
+int timer[BUFFER_SIZE];  // Storage for timing of events.
 int slope[BUFFER_SIZE];  // Storage for slope of events.
 unsigned int totalTimer; // Used to calculate period.
 byte index = 0;          // Current storage index.
@@ -84,6 +104,13 @@ long clippingTimer = 0;
 // Clipping indicator variables.
 boolean clipping = true;
 #define CLIPPING_TIME 5 * TIMER_RATE // This should amount to 2 seconds.
+
+void reset()
+{               // Clear out some variables.
+  index = 0;    // Reset index.
+  noMatch = 0;  // Reset match counter.
+  maxSlope = 0; // Reset slope.
+}
 
 ISR(ADC_vect)
 {                     // When new ADC value ready.
@@ -175,15 +202,7 @@ ISR(ADC_vect)
   }
 }
 
-void reset()
-{               // Clear out some variables.
-  index = 0;    // Reset index.
-  noMatch = 0;  // Reset match counter.
-  maxSlope = 0; // Reset slope.
-}
-
 // --------------------- NOTE MAPPING LOGIC ---------------------
-
 #define NOTES_PER_OCTAVE 12
 
 // reference: https://pages.mtu.edu/~suits/notefreqs.html
@@ -252,11 +271,7 @@ int getClosestFrequencyIndex(int frequency)
   return bestIndex;
 }
 
-// --------------------- NOTE MAPPING LOGIC ---------------------
-// TODO
-
 // --------------------- MAIN PROGRAM ---------------------
-
 void setup()
 {
   Serial.begin(9600);
@@ -279,6 +294,9 @@ void setup()
   ADCSRA |= (1 << ADSC);                 // Start ADC measurements.
 
   sei(); // Enable interrupts.
+
+  // initialize the OLED
+  u8g2.begin();
 }
 
 // loop variables
@@ -290,12 +308,16 @@ int octave;
 int halfNoteUp;
 int halfNoteDown;
 
+// NOTE: there are 3 main OLED buffer modes (full screen, page buffer, and u8x8)
+// with tradeoffs between speed and RAM usage; here we set up the
+// page buffer mode; if you wanted full screen, you'd have to implement the
+// OLED code in the main loop differently; see here for more details:
+// https://github.com/olikraus/u8g2/wiki/setup_tutorial
 void loop()
 {
 
   frequency = TIMER_RATE_10 / period; // Timer rate with an extra zero/period.
 
-  //
   if ((frequency > 0) && (frequency < 158))
   {
     // too low, out of range
@@ -321,7 +343,24 @@ void loop()
     halfNoteUp = (frequencyTable[closestIndex] + frequencyTable[closestIndex + 1]) / 2;
   }
 
+  // update the OLED display (dev/test)
+  // char m_str[6];
+  // strcpy(m_str, u8x8_u8toa(frequency / 10, 5)); /* convert m to a string with 5 digits */
+  char buf1[9];
+  char buf2[9];
+  sprintf(buf1, "%d", newData);
+  sprintf(buf2, "%d Hz", frequency / 10);
+  u8g2.firstPage();
+  do
+  {
+    u8g2.setFont(u8g2_font_ncenB14_tr);
+    u8g2.drawStr(0, 24, buf1);
+    u8g2.drawStr(25, 48, buf2);
+  } while (u8g2.nextPage());
+
   delay(70);
-  Serial.print(frequency / 10);
-  Serial.println(F("Hz"));
+  // Serial.print(frequency / 10);
+  // Serial.println(F("Hz"));
+  Serial.print(newData);
+  Serial.println(F("Bytes"));
 }
