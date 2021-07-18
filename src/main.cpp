@@ -66,7 +66,7 @@ U8G2_SH1106_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE);
 
 int CLIPPING_LED = 13;
 
-// Data storage variables.
+// Audio signal amplitude storage variables, used for determining slope
 byte newData = 0;
 byte prevData = 0;
 
@@ -74,7 +74,7 @@ byte prevData = 0;
 unsigned int period;
 int frequency;
 
-#define HALF_SAMPLE_VALUE 127
+#define HALF_SAMPLE_VALUE 127 // mid-point of [0, 255] ADC range
 #define TIMER_RATE 38462
 #define TIMER_RATE_10 TIMER_RATE * 10
 
@@ -112,14 +112,18 @@ void reset()
   maxSlope = 0; // Reset slope.
 }
 
+// Define Interrupt Routine
 ISR(ADC_vect)
-{                     // When new ADC value ready.
+{                     // Interrupt Triggers when new ADC value ready.
+  
   PORTB &= B11101111; // Set pin 12 low.
   prevData = newData; // Store previous value.
-  newData = ADCH;     // Get value from A0.
+  newData = ADCH;     // Get new audio signal value from A0.
+
   if (prevData < HALF_SAMPLE_VALUE && newData >= HALF_SAMPLE_VALUE)
   {                                // if increasing and crossing midpoint
     newSlope = newData - prevData; // Calculate slope
+    
     if (abs(newSlope - maxSlope) < slopeTol)
     { // If slopes are ==
       // Record new data and reset time.
@@ -309,13 +313,14 @@ int halfNoteUp;
 int halfNoteDown;
 
 // NOTE: there are 3 main OLED buffer modes (full screen, page buffer, and u8x8)
-// with tradeoffs between speed and RAM usage; here we set up the
+// with tradeoffs between speed and RAM usage; here we use the
 // page buffer mode; if you wanted full screen, you'd have to implement the
 // OLED code in the main loop differently; see here for more details:
 // https://github.com/olikraus/u8g2/wiki/setup_tutorial
 void loop()
 {
 
+  // # note: this is actually frequency * 10
   frequency = TIMER_RATE_10 / period; // Timer rate with an extra zero/period.
 
   if ((frequency > 0) && (frequency < 158))
@@ -348,19 +353,18 @@ void loop()
   // strcpy(m_str, u8x8_u8toa(frequency / 10, 5)); /* convert m to a string with 5 digits */
   char buf1[9];
   char buf2[9];
-  sprintf(buf1, "%d", newData);
+  // sprintf(buf1, note);
   sprintf(buf2, "%d Hz", frequency / 10);
   u8g2.firstPage();
   do
   {
     u8g2.setFont(u8g2_font_ncenB14_tr);
-    u8g2.drawStr(0, 24, buf1);
+    u8g2.drawStr(0, 24, note.c_str());
     u8g2.drawStr(25, 48, buf2);
   } while (u8g2.nextPage());
 
   delay(70);
-  // Serial.print(frequency / 10);
-  // Serial.println(F("Hz"));
-  Serial.print(newData);
-  Serial.println(F("Bytes"));
+  Serial.print(frequency / 10);
+  Serial.println(F("Hz"));
+
 }
