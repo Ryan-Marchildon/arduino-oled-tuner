@@ -35,9 +35,14 @@
 // display was made by Ryan P. Marchildon Jan-Feb 2021
 
 // === PIN SETUP ===
-// TODO
-// Frequency input is A0 on Arduino Uno using the defaults in this file.
-// For I2C OLED: SCK is pin A5, SDA is A4
+// Audio Signal input is pin A0 (Ardino Nano or Uno)
+// and must be between 0 and 5 volts to avoid clipping
+// (refer to schematic on github page for example of how
+// to bias the input).
+
+// For an I2C OLED with pinout (VDD, GND, SCK, SDA), these
+// map to Arduino pins (5V, GND, A5, A4) respectively. 
+
 
 // === LICENSE ===
 // This program is free software; you can redistribute it and/or modify
@@ -275,6 +280,16 @@ int getClosestFrequencyIndex(int frequency)
   return bestIndex;
 }
 
+int getIndicatorPosition(int rangeStart, int rangeStop, int value)
+{
+  // given a range of frequencies spanning rangeStart to rangeStop,
+  // maps 'value' to a number between 0 and 100, where 50 ~is in-tune,
+  // so we can display the present frequency relative to the target
+  // note as an X-coordinate on the OLED
+  return 100 * (value - rangeStart) / (rangeStop - rangeStart);
+}
+
+
 // --------------------- MAIN PROGRAM ---------------------
 void setup()
 {
@@ -309,8 +324,9 @@ String note;
 int sharp;
 int offset;
 int octave;
-int halfNoteUp;
-int halfNoteDown;
+int freqRangeStart;
+int freqRangeEnd;
+int indicatorPosition;
 
 // NOTE: there are 3 main OLED buffer modes (full screen, page buffer, and u8x8)
 // with tradeoffs between speed and RAM usage; here we use the
@@ -340,12 +356,17 @@ void loop()
     note = indexToNote(closestIndex);
     sharp = indexToSharp(closestIndex);
     octave = indexToOctave(closestIndex);
-    offset = frequency - frequencyTable[closestIndex];
+    offset = frequency - frequencyTable[closestIndex]; // freq diff in Hz times 10
 
     // determine frequencies halfway to adjacent notes
-    // (used to scale the offset indicator)
-    halfNoteDown = (frequencyTable[closestIndex] + frequencyTable[closestIndex - 1]) / 2;
-    halfNoteUp = (frequencyTable[closestIndex] + frequencyTable[closestIndex + 1]) / 2;
+    // (i.e. the start and end of the frequency range of the offset indicator)
+    freqRangeStart = (frequencyTable[closestIndex] + frequencyTable[closestIndex - 1]) / 2;
+    freqRangeEnd = (frequencyTable[closestIndex] + frequencyTable[closestIndex + 1]) / 2;
+
+    // map current (actual) frequency to range [0.0, 1.0] where
+    // freqRangeStart = 0.0, freqRangeEnd = 1.0, and the target is 0.5
+
+    indicatorPosition = getIndicatorPosition(freqRangeStart, freqRangeEnd, frequency);
   }
 
   // update the OLED display (dev/test)
