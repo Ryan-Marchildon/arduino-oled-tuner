@@ -363,9 +363,8 @@ void loop()
     freqRangeStart = (frequencyTable[closestIndex] + frequencyTable[closestIndex - 1]) / 2;
     freqRangeEnd = (frequencyTable[closestIndex] + frequencyTable[closestIndex + 1]) / 2;
 
-    // map current (actual) frequency to range [0.0, 1.0] where
-    // freqRangeStart = 0.0, freqRangeEnd = 1.0, and the target is 0.5
-
+    // map current (actual) frequency to range [0, 100] where
+    // freqRangeStart = 0, freqRangeEnd = 100, and the target is ~50
     indicatorPosition = getIndicatorPosition(freqRangeStart, freqRangeEnd, frequency);
   }
 
