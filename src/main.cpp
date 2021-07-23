@@ -60,6 +60,7 @@
 #include <Wire.h>
 #endif
 
+
 // --------------------- OLED SETUP ---------------------
 // Refer to the official U8G2 library documentation here for
 // more information: https://github.com/olikraus/u8g2/wiki
@@ -67,8 +68,12 @@
 // specify your OLED model, comms protocal (I2C or SPI), buffer mode, and pin configuration
 U8G2_SH1106_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE);
 
-// --------------------- FREQUENCY MEASUREMENT LOGIC ---------------------
+// adjust these constants given your OLED screen size
+#define SCREEN_PIXEL_WIDTH 128  // how many horizontal pixels total
+#define SCREEN_PIXEL_HEIGHT 64 // how many vertical pixels total
 
+
+// --------------------- FREQUENCY MEASUREMENT LOGIC ---------------------
 int CLIPPING_LED = 13;
 
 // Audio signal amplitude storage variables, used for determining slope
@@ -211,6 +216,7 @@ ISR(ADC_vect)
   }
 }
 
+
 // --------------------- NOTE MAPPING LOGIC ---------------------
 #define NOTES_PER_OCTAVE 12
 
@@ -290,6 +296,49 @@ int getIndicatorPosition(int rangeStart, int rangeStop, int value)
 }
 
 
+// --------------------- OLED DISPLAY LOGIC ---------------------
+#define INDICATOR_HEIGHT 5 // how tall to make indicator bar
+#define BUCKETS 10 // number of buckets for tuning indicator
+#define BUCKET_WIDTH SCREEN_PIXEL_WIDTH / BUCKETS
+
+#define TARGET_START 45 // in terms of indicator position
+#define TARGET_STOP 55
+#define TARGET_X_START SCREEN_PIXEL_WIDTH * TARGET_START / 100
+#define TARGET_X_STOP SCREEN_PIXEL_WIDTH * TARGET_STOP / 100
+
+#define INDICATOR_Y_TOP SCREEN_PIXEL_HEIGHT - INDICATOR_HEIGHT
+#define INDICATOR_Y_BOTTOM SCREEN_PIXEL_HEIGHT
+#define TARGET_PIXEL_WIDTH TARGET_X_STOP - TARGET_X_START
+
+// #define SCREEN_PIXEL_WIDTH 128  // how many horizontal pixels total
+// #define SCREEN_PIXEL_HEIGHT 64 // how many vertical pixels total
+
+void drawIndicator(int indicatorPosition){
+  // provides visualization of current tuning versus target
+  // for displayed note
+  // NOTE: recall that indicatorPosition is in range [0, 100]
+
+  // draw bounds of target
+  u8g2.drawLine(TARGET_X_START, INDICATOR_Y_BOTTOM, TARGET_X_START, INDICATOR_Y_TOP);
+  u8g2.drawLine(TARGET_X_STOP, INDICATOR_Y_BOTTOM, TARGET_X_STOP, INDICATOR_Y_TOP);
+
+  // draw box indicating where we are relative to target
+  if (TARGET_START < indicatorPosition  && indicatorPosition < TARGET_STOP) {
+    // fill the central target position! yay, success
+    u8g2.drawBox(TARGET_X_START, INDICATOR_Y_TOP, TARGET_PIXEL_WIDTH, INDICATOR_HEIGHT); // x of upper left, y of upper left, width, height
+  }
+  else {
+    // determine indicator box based on offset
+    int bucket_id = (indicatorPosition * BUCKETS) / 100;// should be in range [0, BUCKETS]
+    u8g2.drawBox(bucket_id * BUCKET_WIDTH, INDICATOR_Y_TOP, BUCKET_WIDTH, INDICATOR_HEIGHT); // x of upper left, y of upper left, width, height
+  }
+
+}
+
+
+
+
+
 // --------------------- MAIN PROGRAM ---------------------
 void setup()
 {
@@ -342,12 +391,14 @@ void loop()
   if ((frequency > 0) && (frequency < 158))
   {
     // too low, out of range
-    Serial.println(F("LOW freq condition"));
+    // Serial.println(F("LOW freq condition"));
+    // <SET CLIPPING INDICATOR HIGH>
   }
   else if ((frequency > 10180) && (frequency < 100000))
   {
     // too high, out of range
-    Serial.println(F("HIGH freq condition"));
+    // Serial.println(F("HIGH freq condition"));
+    // <SET CLIPPING INDICATOR HIGH>
   }
   else
   {
@@ -366,11 +417,12 @@ void loop()
     // map current (actual) frequency to range [0, 100] where
     // freqRangeStart = 0, freqRangeEnd = 100, and the target is ~50
     indicatorPosition = getIndicatorPosition(freqRangeStart, freqRangeEnd, frequency);
+
+    // calculate x-coordinates of OLED indicator box
+    // (note: NUM_INDICATOR_BINS should divide evenly into X_OLED_SCREEN_WIDTH)
   }
 
-  // update the OLED display (dev/test)
-  // char m_str[6];
-  // strcpy(m_str, u8x8_u8toa(frequency / 10, 5)); /* convert m to a string with 5 digits */
+  // update the OLED display
   char buf1[9];
   char buf2[9];
   // sprintf(buf1, note);
@@ -381,10 +433,15 @@ void loop()
     u8g2.setFont(u8g2_font_ncenB14_tr);
     u8g2.drawStr(0, 24, note.c_str());
     u8g2.drawStr(25, 48, buf2);
+
+    drawIndicator(indicatorPosition);
+
   } while (u8g2.nextPage());
 
   delay(70);
-  Serial.print(frequency / 10);
-  Serial.println(F("Hz"));
+
+  // can uncomment for debugging purposes
+  // Serial.print(frequency / 10);
+  // Serial.println(F("Hz"));
 
 }
