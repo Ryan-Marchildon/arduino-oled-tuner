@@ -297,17 +297,10 @@ int getIndicatorPosition(int rangeStart, int rangeStop, int value)
 
 
 // --------------------- OLED DISPLAY LOGIC ---------------------
-// --- customizable constants ---
-
-// adjust sizes and positions of note info;
-// configured for 128x64 screen, you may want to adjust
-// if using a different screen size; 
-// coordinates specify the bottom-left pixel of the displayed 
-// string relative to the center of the screen;
-// available fonts are documented here:
+// adjust size and position for note display
+// (defaults below are for 128x64 pixel display);
+// for list of available fonts see:
 // https://github.com/olikraus/u8g2/wiki/fntlistall
-
-
 #define NOTE_FONT u8g2_font_ncenB24_tr
 #define SHARP_FONT u8g2_font_ncenB12_tr
 #define OCTAVE_FONT u8g2_font_ncenB12_tr
@@ -322,23 +315,7 @@ int getIndicatorPosition(int rangeStart, int rangeStop, int value)
 #define OCTAVE_Y_OFFSET 4 
 
 
-// adjust tuning indicator settings
-#define INDICATOR_HEIGHT 5 // how tall to make indicator bar
-#define BUCKETS 5 // number of buckets for tuning indicator
-#define TARGET_START 40 // in terms of indicator position
-#define TARGET_STOP 60
-
-// --- derived constants ---
-#define BUCKET_WIDTH SCREEN_PIXEL_WIDTH / BUCKETS
-#define TARGET_X_START SCREEN_PIXEL_WIDTH * TARGET_START / 100
-#define TARGET_X_STOP SCREEN_PIXEL_WIDTH * TARGET_STOP / 100
-#define INDICATOR_Y_TOP SCREEN_PIXEL_HEIGHT - INDICATOR_HEIGHT
-#define INDICATOR_Y_BOTTOM SCREEN_PIXEL_HEIGHT
-#define TARGET_PIXEL_WIDTH TARGET_X_STOP - TARGET_X_START
-
-
 void drawNote(String note, int sharp, int octave){
-
   // display note value, e.g. G, A, B ...
   u8g2.setFont(NOTE_FONT);
   u8g2.drawStr(NOTE_X, NOTE_Y, note.c_str());
@@ -354,22 +331,42 @@ void drawNote(String note, int sharp, int octave){
   char oct_buf[1];
   sprintf(oct_buf, "%d", octave);
   u8g2.drawStr(NOTE_X + OCTAVE_X_OFFSET, NOTE_Y + OCTAVE_Y_OFFSET, oct_buf);
-
 }
 
+
+// adjust tuning indicator settings
+#define INDICATOR_HEIGHT 5 // how tall to make indicator bar
+#define BUCKETS 5 // number of buckets for tuning indicator
+#define TARGET_START 40 // in terms of indicator position
+#define TARGET_STOP 60
+#define EMPHASIS_OFFSET 5 // adding "oomph" lines when we hit target
+
+// derived constants
+#define BUCKET_WIDTH SCREEN_PIXEL_WIDTH / BUCKETS
+#define TARGET_X_START SCREEN_PIXEL_WIDTH * TARGET_START / 100
+#define TARGET_X_STOP SCREEN_PIXEL_WIDTH * TARGET_STOP / 100
+#define INDICATOR_Y_TOP SCREEN_PIXEL_HEIGHT - INDICATOR_HEIGHT
+#define INDICATOR_Y_BOTTOM SCREEN_PIXEL_HEIGHT
+#define TARGET_PIXEL_WIDTH TARGET_X_STOP - TARGET_X_START
+
+
 void drawIndicator(int indicatorPosition){
-  // provides visualization of current tuning versus target
-  // for displayed note
-  // NOTE: recall that indicatorPosition is in range [0, 100]
+  // provides visualization of current tuning versus target for displayed note
+  // NOTE: indicatorPosition is in range [0, 100]
 
   // draw bounds of target
   u8g2.drawLine(TARGET_X_START, INDICATOR_Y_BOTTOM, TARGET_X_START, INDICATOR_Y_TOP);
   u8g2.drawLine(TARGET_X_STOP, INDICATOR_Y_BOTTOM, TARGET_X_STOP, INDICATOR_Y_TOP);
-
+ 
   // draw box indicating where we are relative to target
   if (TARGET_START < indicatorPosition  && indicatorPosition < TARGET_STOP) {
-    // fill the central target position! yay, success
+    // fill the central target position
     u8g2.drawBox(TARGET_X_START, INDICATOR_Y_TOP, TARGET_PIXEL_WIDTH, INDICATOR_HEIGHT); // x of upper left, y of upper left, width, height
+  
+    // add a little emphasis to get those sweet victory feelz
+    u8g2.drawLine(TARGET_X_START - EMPHASIS_OFFSET, INDICATOR_Y_BOTTOM, TARGET_X_START - EMPHASIS_OFFSET, INDICATOR_Y_TOP);
+    u8g2.drawLine(TARGET_X_STOP + EMPHASIS_OFFSET, INDICATOR_Y_BOTTOM, TARGET_X_STOP + EMPHASIS_OFFSET, INDICATOR_Y_TOP);
+  
   }
   else {
     // determine indicator box based on offset
@@ -379,8 +376,25 @@ void drawIndicator(int indicatorPosition){
 
 }
 
+// adjust frequency display settings
+#define FREQ_FONT u8g2_font_ncenB08_tr
+#define FREQ_HEIGHT 12
+#define FREQ_TARG_OFFSET 2 // adds extra vertical space
 
+void drawFrequency(int freq, int target){
+  u8g2.setFont(FREQ_FONT);
+  
+  // display actual frequency
+  char buf1[9];
+  sprintf(buf1, "%d Hz", frequency / 10);
+  u8g2.drawStr(0, FREQ_HEIGHT, buf1);
 
+  // also show the target
+  char buf2[16];
+  sprintf(buf2, "(%d)", target / 10);
+  u8g2.drawStr(0, 2 * FREQ_HEIGHT, buf2);
+
+}
 
 
 // --------------------- MAIN PROGRAM ---------------------
@@ -415,7 +429,7 @@ void setup()
 int closestIndex;
 String note;
 int sharp;
-int offset;
+int targetFreq;
 int octave;
 int freqRangeStart;
 int freqRangeEnd;
@@ -428,8 +442,7 @@ int indicatorPosition;
 // https://github.com/olikraus/u8g2/wiki/setup_tutorial
 void loop()
 {
-
-  // # note: this is actually frequency * 10
+  // Note: this is actually frequency * 10
   frequency = TIMER_RATE_10 / period; // Timer rate with an extra zero/period.
 
   if ((frequency > 0) && (frequency < 158))
@@ -451,12 +464,12 @@ void loop()
     note = indexToNote(closestIndex);
     sharp = indexToSharp(closestIndex);
     octave = indexToOctave(closestIndex);
-    offset = frequency - frequencyTable[closestIndex]; // freq diff in Hz times 10
+    targetFreq = frequencyTable[closestIndex]; // freq diff in Hz times 10
 
     // determine frequencies halfway to adjacent notes
     // (i.e. the start and end of the frequency range of the offset indicator)
-    freqRangeStart = (frequencyTable[closestIndex] + frequencyTable[closestIndex - 1]) / 2;
-    freqRangeEnd = (frequencyTable[closestIndex] + frequencyTable[closestIndex + 1]) / 2;
+    freqRangeStart = (targetFreq + frequencyTable[closestIndex - 1]) / 2;
+    freqRangeEnd = (targetFreq + frequencyTable[closestIndex + 1]) / 2;
 
     // map current (actual) frequency to range [0, 100] where
     // freqRangeStart = 0, freqRangeEnd = 100, and the target is ~50
@@ -469,14 +482,7 @@ void loop()
   do
   {
     // see https://github.com/olikraus/u8g2/wiki/u8g2reference
-
-    // display frequency
-    u8g2.setFont(u8g2_font_ncenB08_tr);
-    char buf[9];
-    sprintf(buf, "%d Hz", frequency / 10);
-    u8g2.drawStr(0, 12, buf);
-
-    // draw other stuff...
+    drawFrequency(frequency, targetFreq);
     drawNote(note, sharp, octave);
     drawIndicator(indicatorPosition);
 
