@@ -297,21 +297,65 @@ int getIndicatorPosition(int rangeStart, int rangeStop, int value)
 
 
 // --------------------- OLED DISPLAY LOGIC ---------------------
-#define INDICATOR_HEIGHT 5 // how tall to make indicator bar
-#define BUCKETS 10 // number of buckets for tuning indicator
-#define BUCKET_WIDTH SCREEN_PIXEL_WIDTH / BUCKETS
+// --- customizable constants ---
 
-#define TARGET_START 45 // in terms of indicator position
-#define TARGET_STOP 55
+// adjust sizes and positions of note info;
+// configured for 128x64 screen, you may want to adjust
+// if using a different screen size; 
+// coordinates specify the bottom-left pixel of the displayed 
+// string relative to the center of the screen;
+// available fonts are documented here:
+// https://github.com/olikraus/u8g2/wiki/fntlistall
+
+
+#define NOTE_FONT u8g2_font_ncenB24_tr
+#define SHARP_FONT u8g2_font_ncenB12_tr
+#define OCTAVE_FONT u8g2_font_ncenB12_tr
+
+#define NOTE_X 46 // bottom-left coordinates of note
+#define NOTE_Y 48 // relative to screen
+
+#define SHARP_X_OFFSET 26 // position relative to note
+#define SHARP_Y_OFFSET -18 
+
+#define OCTAVE_X_OFFSET 26 // position relative to note
+#define OCTAVE_Y_OFFSET 4 
+
+
+// adjust tuning indicator settings
+#define INDICATOR_HEIGHT 5 // how tall to make indicator bar
+#define BUCKETS 5 // number of buckets for tuning indicator
+#define TARGET_START 40 // in terms of indicator position
+#define TARGET_STOP 60
+
+// --- derived constants ---
+#define BUCKET_WIDTH SCREEN_PIXEL_WIDTH / BUCKETS
 #define TARGET_X_START SCREEN_PIXEL_WIDTH * TARGET_START / 100
 #define TARGET_X_STOP SCREEN_PIXEL_WIDTH * TARGET_STOP / 100
-
 #define INDICATOR_Y_TOP SCREEN_PIXEL_HEIGHT - INDICATOR_HEIGHT
 #define INDICATOR_Y_BOTTOM SCREEN_PIXEL_HEIGHT
 #define TARGET_PIXEL_WIDTH TARGET_X_STOP - TARGET_X_START
 
-// #define SCREEN_PIXEL_WIDTH 128  // how many horizontal pixels total
-// #define SCREEN_PIXEL_HEIGHT 64 // how many vertical pixels total
+
+void drawNote(String note, int sharp, int octave){
+
+  // display note value, e.g. G, A, B ...
+  u8g2.setFont(NOTE_FONT);
+  u8g2.drawStr(NOTE_X, NOTE_Y, note.c_str());
+
+  // show sharp value if a sharp
+  u8g2.setFont(SHARP_FONT);
+  if (sharp == 1){
+      u8g2.drawStr(NOTE_X + SHARP_X_OFFSET, NOTE_Y + SHARP_Y_OFFSET, "#");
+  }
+  
+  // show what octave we are in
+  u8g2.setFont(OCTAVE_FONT);
+  char oct_buf[1];
+  sprintf(oct_buf, "%d", octave);
+  u8g2.drawStr(NOTE_X + OCTAVE_X_OFFSET, NOTE_Y + OCTAVE_Y_OFFSET, oct_buf);
+
+}
 
 void drawIndicator(int indicatorPosition){
   // provides visualization of current tuning versus target
@@ -418,22 +462,22 @@ void loop()
     // freqRangeStart = 0, freqRangeEnd = 100, and the target is ~50
     indicatorPosition = getIndicatorPosition(freqRangeStart, freqRangeEnd, frequency);
 
-    // calculate x-coordinates of OLED indicator box
-    // (note: NUM_INDICATOR_BINS should divide evenly into X_OLED_SCREEN_WIDTH)
   }
 
   // update the OLED display
-  char buf1[9];
-  char buf2[9];
-  // sprintf(buf1, note);
-  sprintf(buf2, "%d Hz", frequency / 10);
   u8g2.firstPage();
   do
   {
-    u8g2.setFont(u8g2_font_ncenB14_tr);
-    u8g2.drawStr(0, 24, note.c_str());
-    u8g2.drawStr(25, 48, buf2);
+    // see https://github.com/olikraus/u8g2/wiki/u8g2reference
 
+    // display frequency
+    u8g2.setFont(u8g2_font_ncenB08_tr);
+    char buf[9];
+    sprintf(buf, "%d Hz", frequency / 10);
+    u8g2.drawStr(0, 12, buf);
+
+    // draw other stuff...
+    drawNote(note, sharp, octave);
     drawIndicator(indicatorPosition);
 
   } while (u8g2.nextPage());
