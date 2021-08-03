@@ -52,6 +52,7 @@
 
 #include <Arduino.h>
 #include <U8g2lib.h>
+#include <movingAvg.h>
 
 #ifdef U8X8_HAVE_HW_SPI
 #include <SPI.h>
@@ -74,6 +75,11 @@ U8G2_SH1106_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE);
 
 
 // --------------------- FREQUENCY MEASUREMENT LOGIC ---------------------
+// for smoothing of the frequency reading; set to zero to disable
+#define MOVING_AVERAGE_SAMPLES 5
+movingAvg smoothedFrequency(MOVING_AVERAGE_SAMPLES);
+
+// LED that tells us whether the input waveform amplitude is too large
 int CLIPPING_LED = 13;
 
 // Audio signal amplitude storage variables, used for determining slope
@@ -396,8 +402,30 @@ void drawFrequency(int freq, int target){
 
 }
 
+void drawFreqTooLow(int limit){
+  // range warning message
+  u8g2.setFont(FREQ_FONT);
+  
+  u8g2.drawStr(0, FREQ_HEIGHT, "Out of Range:");
 
-// --------------------- MAIN PROGRAM ---------------------
+  char buf[16];
+  sprintf(buf, "Too Low (<%d Hz)", limit / 10);
+  u8g2.drawStr(0, 2 * FREQ_HEIGHT, buf);
+}
+
+void drawFreqTooHigh(int limit){
+  // range warning message
+  u8g2.setFont(FREQ_FONT);
+  
+  u8g2.drawStr(0, FREQ_HEIGHT, "Out of Range:");
+
+  char buf[16];
+  sprintf(buf, "Too high (>%d Hz)", limit / 10);
+  u8g2.drawStr(0, 2 * FREQ_HEIGHT, buf);
+}
+
+
+// --------------------- PROGRAM SETUP ---------------------
 void setup()
 {
   Serial.begin(9600);
@@ -423,8 +451,21 @@ void setup()
 
   // initialize the OLED
   u8g2.begin();
+
+  // initialize the moving average filter
+  if (MOVING_AVERAGE_SAMPLES > 0) {
+    smoothedFrequency.begin();
+    for (int i=0; i <= MOVING_AVERAGE_SAMPLES; i++){
+      // we also pre-seed it so it's never undefined
+      smoothedFrequency.reading(50);
+    }
+  }
+
 }
 
+
+
+// --------------------- MAIN PROGRAM ---------------------
 // loop variables
 int closestIndex;
 String note;
@@ -442,20 +483,34 @@ int indicatorPosition;
 // https://github.com/olikraus/u8g2/wiki/setup_tutorial
 void loop()
 {
+  
+  // Extract the frequency for this loop iteration
   // Note: this is actually frequency * 10
   frequency = TIMER_RATE_10 / period; // Timer rate with an extra zero/period.
 
-  if ((frequency > 0) && (frequency < 158))
-  {
-    // too low, out of range
-    // Serial.println(F("LOW freq condition"));
-    // <SET CLIPPING INDICATOR HIGH>
+  // Smooth the frequency if moving average enabled
+  if (MOVING_AVERAGE_SAMPLES > 0){
+    smoothedFrequency.reading(frequency);
+    frequency = smoothedFrequency.getAvg();
   }
-  else if ((frequency > 10180) && (frequency < 100000))
+
+  if (frequency < 158)
   {
-    // too high, out of range
-    // Serial.println(F("HIGH freq condition"));
-    // <SET CLIPPING INDICATOR HIGH>
+    // display out of range (too low) message
+    u8g2.firstPage();
+    do
+    {
+      drawFreqTooLow(158);
+    } while (u8g2.nextPage());
+  }
+  else if (frequency > 12000)
+  {
+    // display out of range (too high) message
+    u8g2.firstPage();
+    do
+    {
+      drawFreqTooHigh(12000);
+    } while (u8g2.nextPage());
   }
   else
   {
@@ -475,18 +530,18 @@ void loop()
     // freqRangeStart = 0, freqRangeEnd = 100, and the target is ~50
     indicatorPosition = getIndicatorPosition(freqRangeStart, freqRangeEnd, frequency);
 
+    // update the OLED display
+    u8g2.firstPage();
+    do
+    {
+      // see https://github.com/olikraus/u8g2/wiki/u8g2reference
+      drawFrequency(frequency, targetFreq);
+      drawNote(note, sharp, octave);
+      drawIndicator(indicatorPosition);
+
+    } while (u8g2.nextPage());
+
   }
-
-  // update the OLED display
-  u8g2.firstPage();
-  do
-  {
-    // see https://github.com/olikraus/u8g2/wiki/u8g2reference
-    drawFrequency(frequency, targetFreq);
-    drawNote(note, sharp, octave);
-    drawIndicator(indicatorPosition);
-
-  } while (u8g2.nextPage());
 
   delay(70);
 
