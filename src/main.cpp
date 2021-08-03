@@ -25,14 +25,15 @@
 // frequency detection project by Amanda Ghassaei (July 2012)
 // https://www.instructables.com/member/amandaghassaei/
 // as well as contributions from Sam / LookMumNoComputer
-// who adapted it for an LED frequency indicator
-// https://www.lookmumnocomputer.com/projects#/1222-performance-vco
-// and Jos Bouten aka Zaphod B who significantly cleaned and optimized
-// the code (Jan-Feb 2020)
+// and Jos Bouten aka Zaphod B who adapted it into an LED-based
+// frequency indicator (Jan-Feb 2020) 
+// https://www.lookmumnocomputer.com/projects#/1222-performance-vco 
 // https://github.com/josbouten/Tune-O-Matic
 
 // Modification of Sam / Jos' tuner code to accommodate an OLED
-// display was made by Ryan P. Marchildon Jan-Feb 2021
+// display was made by Ryan P. Marchildon Jan-Feb 2021. The note
+// mapping logic was rewritten so that the octave, sharps, 
+// and a visual offset indicator could be included.
 
 // === PIN SETUP ===
 // Audio Signal input is pin A0 (Ardino Nano or Uno)
@@ -125,7 +126,7 @@ void reset()
   maxSlope = 0; // Reset slope.
 }
 
-// Define Interrupt Routine
+// Define Interrupt Routine for Frequency Detection
 ISR(ADC_vect)
 {                     // Interrupt Triggers when new ADC value ready.
   
@@ -292,7 +293,7 @@ int getClosestFrequencyIndex(int frequency)
 int getIndicatorPosition(int rangeStart, int rangeStop, int value)
 {
   // given a range of frequencies spanning rangeStart to rangeStop,
-  // maps 'value' to a number between 0 and 100, where 50 ~is in-tune,
+  // maps 'value' to a number between 0 and 100, where 50 is ~ in-tune,
   // so we can display the present frequency relative to the target
   // note as an X-coordinate on the OLED
   return 100 * (value - rangeStart) / (rangeStop - rangeStart);
@@ -308,8 +309,8 @@ int getIndicatorPosition(int rangeStart, int rangeStop, int value)
 #define SHARP_FONT u8g2_font_ncenB12_tr
 #define OCTAVE_FONT u8g2_font_ncenB12_tr
 
-#define NOTE_X 46 // bottom-left coordinates of note
-#define NOTE_Y 48 // relative to screen
+#define NOTE_X 46 // bottom-left coordinates of note relative to screen
+#define NOTE_Y 48
 
 #define SHARP_X_OFFSET 26 // position relative to note
 #define SHARP_Y_OFFSET -18 
@@ -355,7 +356,7 @@ void drawNote(String note, int sharp, int octave){
 
 void drawIndicator(int indicatorPosition){
   // provides visualization of current tuning versus target for displayed note
-  // NOTE: indicatorPosition is in range [0, 100]
+  // NOTE: assumes indicatorPosition is in range [0, 100]
 
   // draw bounds of target
   u8g2.drawLine(TARGET_X_START, INDICATOR_Y_BOTTOM, TARGET_X_START, INDICATOR_Y_TOP);
@@ -411,8 +412,9 @@ void drawFrequency(int freq, int target){
 
 }
 
+// range warning messages
 void drawFreqTooLow(int limit){
-  // range warning message
+
   u8g2.setFont(FREQ_FONT);
   
   u8g2.drawStr(0, FREQ_HEIGHT, "Out of Range:");
@@ -423,7 +425,7 @@ void drawFreqTooLow(int limit){
 }
 
 void drawFreqTooHigh(int limit){
-  // range warning message
+
   u8g2.setFont(FREQ_FONT);
   
   u8g2.drawStr(0, FREQ_HEIGHT, "Out of Range:");
@@ -434,7 +436,7 @@ void drawFreqTooHigh(int limit){
 }
 
 // clipping warning display
-#define CLIPPING_MSG_X_START 95
+#define CLIPPING_MSG_X_START 95 // horizontal location of message
 
 void drawClippingWarning(){
   u8g2.setFont(FREQ_FONT);
@@ -571,7 +573,8 @@ void loop()
 
   delay(70);
 
-  // can uncomment for debugging purposes
+  // uncomment these if you want to display the
+  // frequency on the serial port, for debugging
   // Serial.print(frequency / 10);
   // Serial.println(F("Hz"));
 
