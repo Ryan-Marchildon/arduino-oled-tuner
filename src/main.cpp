@@ -383,19 +383,31 @@ void drawIndicator(int indicatorPosition){
 #define FREQ_FONT u8g2_font_ncenB08_tr
 #define FREQ_HEIGHT 12
 #define FREQ_TARG_OFFSET 2 // adds extra vertical space
+#define NUM_DECIMALS 1
 
 void drawFrequency(int freq, int target){
-  u8g2.setFont(FREQ_FONT);
   
+  u8g2.setFont(FREQ_FONT);
+
+  // we will include decimals
+  float freqFloat;
+  float targetFloat;
+  freqFloat = (float) freq;
+  targetFloat = (float) target;
+
   // display actual frequency
-  char buf1[9];
-  sprintf(buf1, "%d Hz", frequency / 10);
-  u8g2.drawStr(0, FREQ_HEIGHT, buf1);
+  char strBuff1[10];
+  char strBuff2[10];
+  dtostrf(freqFloat / 10, 2, NUM_DECIMALS, strBuff1); // needed to convert float to string
+  sprintf(strBuff2, "%s Hz", strBuff1);
+  u8g2.drawStr(0, FREQ_HEIGHT, strBuff2);
 
   // also show the target
-  char buf2[16];
-  sprintf(buf2, "(%d)", target / 10);
-  u8g2.drawStr(0, 2 * FREQ_HEIGHT, buf2);
+  char strBuff3[10];
+  char strBuff4[10];
+  dtostrf(targetFloat / 10, 2, NUM_DECIMALS, strBuff3); // needed to convert float to string
+  sprintf(strBuff4, "(%s)", strBuff3);
+  u8g2.drawStr(0, 2 * FREQ_HEIGHT, strBuff4);
 
 }
 
