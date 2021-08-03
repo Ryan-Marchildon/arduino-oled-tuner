@@ -79,9 +79,6 @@ U8G2_SH1106_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE);
 #define MOVING_AVERAGE_SAMPLES 5
 movingAvg smoothedFrequency(MOVING_AVERAGE_SAMPLES);
 
-// LED that tells us whether the input waveform amplitude is too large
-int CLIPPING_LED = 13;
-
 // Audio signal amplitude storage variables, used for determining slope
 byte newData = 0;
 byte prevData = 0;
@@ -420,10 +417,17 @@ void drawFreqTooHigh(int limit){
   u8g2.drawStr(0, FREQ_HEIGHT, "Out of Range:");
 
   char buf[16];
-  sprintf(buf, "Too high (>%d Hz)", limit / 10);
+  sprintf(buf, "Too High (>%d Hz)", limit / 10);
   u8g2.drawStr(0, 2 * FREQ_HEIGHT, buf);
 }
 
+// clipping warning display
+#define CLIPPING_MSG_X_START 95
+
+void drawClippingWarning(){
+  u8g2.setFont(FREQ_FONT);
+  u8g2.drawStr(CLIPPING_MSG_X_START, FREQ_HEIGHT, "!CLIP");
+}
 
 // --------------------- PROGRAM SETUP ---------------------
 void setup()
@@ -501,6 +505,9 @@ void loop()
     do
     {
       drawFreqTooLow(158);
+      if (clipping) {
+        drawClippingWarning();
+      }
     } while (u8g2.nextPage());
   }
   else if (frequency > 12000)
@@ -510,6 +517,9 @@ void loop()
     do
     {
       drawFreqTooHigh(12000);
+      if (clipping) {
+        drawClippingWarning();
+      }
     } while (u8g2.nextPage());
   }
   else
@@ -538,6 +548,10 @@ void loop()
       drawFrequency(frequency, targetFreq);
       drawNote(note, sharp, octave);
       drawIndicator(indicatorPosition);
+
+      if (clipping) {
+        drawClippingWarning();
+      }
 
     } while (u8g2.nextPage());
 
