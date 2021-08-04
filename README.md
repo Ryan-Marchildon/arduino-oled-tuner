@@ -7,6 +7,8 @@ ATMEGA328 based musical note tuner using an i2c OLED display (SSD1306 / SH1106).
 
 
 ## TODO (Add documentation on the following)
+
+
 * Description of what this is (and what it is NOT)
 * Biasing the input (show example circuit)
 * OLED Setup + libraries
@@ -21,3 +23,9 @@ ATMEGA328 based musical note tuner using an i2c OLED display (SSD1306 / SH1106).
   * tuning indicator
 * Customizing the display
 * frequency smoothing option
+
+
+![Display Examples](./images/Display-Examples.jpg)
+
+
+![Demo Circuit](./images/OLED-Tuner-Demo-Circuit.png)
